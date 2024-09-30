@@ -36,10 +36,18 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const al_tests = b.addTest(.{
+        .root_source_file = b.path("src/arraylist.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
     const run_ll_tests = b.addRunArtifact(ll_tests);
+    const run_rl_tests = b.addRunArtifact(al_tests);
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_exe_unit_tests.step);
     test_step.dependOn(&run_ll_tests.step);
+    test_step.dependOn(&run_rl_tests.step);
 }
