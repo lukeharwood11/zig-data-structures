@@ -7,4 +7,4 @@ Exercises to help getting a better grasp of the Zig programming language!
 - [x] [LinkedList](./src/linkedlist.zig)
 - [x] [ArrayList](./src/arraylist.zig)
 - [ ] Heap
-- [ ] Tress
+- [ ] Trees
