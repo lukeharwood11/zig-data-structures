@@ -75,8 +75,15 @@ fn ArrayList(comptime T: type) type {
         /// Just for fun, this supports negative indexing:)
         /// Grab the value at the given index, removing it from the array
         fn pop(self: *Self, index: usize) !T {
-            _ = self;
-            _ = index;
+            if (index >= self.len or (index < 0 and @abs(index) > self.len)) {
+                return ArrayListError.IndexOutOfBounds;
+            }
+            const len: isize = @intCast(self.len);
+            const idx: usize = if (index < 0) @intCast(len + index) else @intCast(index);
+            const value = self.items[idx];
+            self.len -= 1; // 'remove' the item
+            @memcpy(self.items[idx..self.len], self.items[idx + 1 .. self.len + 1]);
+            return value;
         }
 
         /// Add the given value to the end of the array
@@ -158,4 +165,28 @@ test "Get" {
     // negative indexing
     try std.testing.expectEqual(1, try array.get(-3));
     try std.testing.expectError(ArrayListError.IndexOutOfBounds, array.get(-4));
+}
+
+test "Pop" {
+    var array = try ArrayList(i32).init(std.testing.allocator);
+    try array.init_capacity(2);
+    defer array.deinit();
+
+    try array.append(1);
+    try array.append(2);
+    try array.append(3);
+
+    const value = try array.pop(1);
+    try std.testing.expectEqual(2, value);
+    try std.testing.expectEqualSlices(i32, &[_]i32{ 1, 3 }, array.getSlice());
+}
+
+test "Capacity Error" {
+    var array = try ArrayList(i32).init(std.testing.allocator);
+    defer array.deinit();
+
+    try array.append(1);
+    try array.append(2);
+    try array.append(3);
+    try std.testing.expectError(ArrayListError.InitializingNonEmptyArray, array.init_capacity(2));
 }
