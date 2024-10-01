@@ -63,12 +63,11 @@ fn ArrayList(comptime T: type) type {
         /// Just for fun, this supports negative indexing:)
         /// Grab the value at the given index
         fn get(self: Self, index: isize) !T {
-            const len: isize = @intCast(self.len);
             if (index >= self.len or (index < 0 and @abs(index) > self.len)) {
                 return ArrayListError.IndexOutOfBounds;
             }
             return self.items[
-                if (index < 0) @intCast(len + index) else @intCast(index)
+                if (index < 0) @intCast(@as(isize, self.len) + index) else @intCast(index)
             ];
         }
 
@@ -78,8 +77,7 @@ fn ArrayList(comptime T: type) type {
             if (index >= self.len or (index < 0 and @abs(index) > self.len)) {
                 return ArrayListError.IndexOutOfBounds;
             }
-            const len: isize = @intCast(self.len);
-            const idx: usize = if (index < 0) @intCast(len + index) else @intCast(index);
+            const idx: usize = if (index < 0) @intCast(@as(isize, self.len) + index) else @intCast(index);
             const value = self.items[idx];
             self.len -= 1; // 'remove' the item
             @memcpy(self.items[idx..self.len], self.items[idx + 1 .. self.len + 1]);
