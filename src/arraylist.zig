@@ -136,10 +136,9 @@ test "Expand" {
     defer array.deinit();
 
     {
-        const arr = [_]i32{ 1, 2, 3, 4 };
-        try array.expand(arr[0..]);
+        try array.expand(&.{ 1, 2, 3, 4 });
     }
-    try std.testing.expectEqualSlices(i32, &[_]i32{ 1, 2, 3, 4 }, array.getSlice());
+    try std.testing.expectEqualSlices(i32, &.{ 1, 2, 3, 4 }, array.getSlice());
 }
 
 test "Get" {
