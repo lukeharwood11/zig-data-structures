@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const ArrayListError = error{ CannotExpandMemory, IndexOutOfBounds, InitializingNonEmptyArray };
+const ArrayListError = error{ CannotExpandMemory, IndexOutOfBounds };
 
 /// Basic ArrayList implementation
 fn ArrayList(comptime T: type) type {
@@ -12,7 +12,7 @@ fn ArrayList(comptime T: type) type {
         capacity: usize,
         items: []T,
 
-        fn init(allocator: std.mem.Allocator) !Self {
+        fn init(allocator: std.mem.Allocator) Self {
             return .{
                 .allocator = allocator,
                 .len = 0,
@@ -22,13 +22,10 @@ fn ArrayList(comptime T: type) type {
         }
 
         /// Initialize the starting capacity for the array
-        fn init_capacity(self: *Self, capacity: usize) !void {
-            if (self.len > 0) {
-                return ArrayListError.InitializingNonEmptyArray;
-            }
-            const ptr = try self.allocator.alloc(T, capacity);
-            self.items = ptr;
-            self.capacity = capacity;
+        fn initCapacity(allocator: std.mem.Allocator, capacity: usize) !Self {
+            var self = init(allocator);
+            try self.ensureCapacity(capacity);
+            return self;
         }
 
         /// Destroy all resources
@@ -44,7 +41,7 @@ fn ArrayList(comptime T: type) type {
         /// Create a standard amount of extra memory for a new item
         fn reallocate(self: *Self) !void {
             const c: usize = if (self.capacity != 0) self.capacity * 2 else 2;
-            try self.ensure_capacity(c);
+            try self.ensureCapacity(c);
             // This doesn't work with the GeneralPurposeAllocator/testing allocator, not sure why?
             // if (self.allocator.resize(self.items, new_capacity)) {
             //     self.capacity = new_capacity;
@@ -54,7 +51,7 @@ fn ArrayList(comptime T: type) type {
         }
 
         /// Make sure that enough memory exists for the given capacity
-        fn ensure_capacity(self: *Self, capacity: usize) !void {
+        fn ensureCapacity(self: *Self, capacity: usize) !void {
             const slice = try self.allocator.realloc(self.items, capacity);
             self.items = slice;
             self.capacity = capacity;
@@ -66,18 +63,17 @@ fn ArrayList(comptime T: type) type {
             if (index >= self.len or (index < 0 and @abs(index) > self.len)) {
                 return ArrayListError.IndexOutOfBounds;
             }
-            return self.items[
-                if (index < 0) @intCast(@as(isize, self.len) + index) else @intCast(index)
-            ];
+            const idx: usize = if (index < 0) @intCast(@as(isize, @intCast(self.len)) + index) else @intCast(index);
+            return self.items[idx];
         }
 
         /// Just for fun, this supports negative indexing:)
         /// Grab the value at the given index, removing it from the array
-        fn pop(self: *Self, index: usize) !T {
+        fn pop(self: *Self, index: isize) !T {
             if (index >= self.len or (index < 0 and @abs(index) > self.len)) {
                 return ArrayListError.IndexOutOfBounds;
             }
-            const idx: usize = if (index < 0) @intCast(@as(isize, self.len) + index) else @intCast(index);
+            const idx: usize = if (index < 0) @intCast(@as(isize, @intCast(self.len)) + index) else @intCast(index);
             const value = self.items[idx];
             self.len -= 1; // 'remove' the item
             @memcpy(self.items[idx..self.len], self.items[idx + 1 .. self.len + 1]);
@@ -97,7 +93,7 @@ fn ArrayList(comptime T: type) type {
         fn expand(self: *Self, value: []const T) !void {
             const new_len = self.len + value.len;
             if (new_len > self.capacity) {
-                try self.ensure_capacity(new_len * 2);
+                try self.ensureCapacity(new_len * 2);
             }
             @memcpy(self.items[self.len..new_len], value);
             self.len = new_len;
@@ -106,12 +102,12 @@ fn ArrayList(comptime T: type) type {
 }
 
 test "Creation" {
-    var array = try ArrayList(i32).init(std.testing.allocator);
+    var array = ArrayList(i32).init(std.testing.allocator);
     defer array.deinit();
 }
 
 test "Append" {
-    var array = try ArrayList(i32).init(std.testing.allocator);
+    var array = ArrayList(i32).init(std.testing.allocator);
     defer array.deinit();
 
     try array.append(1);
@@ -122,8 +118,7 @@ test "Append" {
 }
 
 test "Expand Capacity" {
-    var array = try ArrayList(i32).init(std.testing.allocator);
-    try array.init_capacity(2);
+    var array = try ArrayList(i32).initCapacity(std.testing.allocator, 2);
     defer array.deinit();
 
     try array.append(1);
@@ -137,7 +132,7 @@ test "Expand Capacity" {
 }
 
 test "Expand" {
-    var array = try ArrayList(i32).init(std.testing.allocator);
+    var array = ArrayList(i32).init(std.testing.allocator);
     defer array.deinit();
 
     {
@@ -148,8 +143,7 @@ test "Expand" {
 }
 
 test "Get" {
-    var array = try ArrayList(i32).init(std.testing.allocator);
-    try array.init_capacity(2);
+    var array = try ArrayList(i32).initCapacity(std.testing.allocator, 2);
     defer array.deinit();
 
     try array.append(1);
@@ -166,8 +160,7 @@ test "Get" {
 }
 
 test "Pop" {
-    var array = try ArrayList(i32).init(std.testing.allocator);
-    try array.init_capacity(2);
+    var array = ArrayList(i32).init(std.testing.allocator);
     defer array.deinit();
 
     try array.append(1);
@@ -177,14 +170,8 @@ test "Pop" {
     const value = try array.pop(1);
     try std.testing.expectEqual(2, value);
     try std.testing.expectEqualSlices(i32, &[_]i32{ 1, 3 }, array.getSlice());
-}
 
-test "Capacity Error" {
-    var array = try ArrayList(i32).init(std.testing.allocator);
-    defer array.deinit();
-
-    try array.append(1);
-    try array.append(2);
-    try array.append(3);
-    try std.testing.expectError(ArrayListError.InitializingNonEmptyArray, array.init_capacity(2));
+    const value2 = try array.pop(-1);
+    try std.testing.expectEqual(3, value2);
+    try std.testing.expectEqualSlices(i32, &[_]i32{1}, array.getSlice());
 }
